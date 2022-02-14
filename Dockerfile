@@ -1,23 +1,31 @@
-FROM php:7.4-apache
+FROM php:8.1-apache
 
-COPY ./_oracle/instantclient_19_6 /usr/local/instantclient_19_6
+RUN apt-get update && apt-get -y install libicu-dev libaio-dev libxml2-dev libjpeg-dev libpng-dev libfreetype6-dev libldap2-dev libzip-dev imagemagick vim wget telnet cron sudo git npm unzip
 
-RUN apt-get update && apt-get -y install libzip-dev \
-  && ln -s /usr/local/instantclient_19_6 /usr/local/instantclient \
-  && ln -s /usr/local/instantclient/lib* /usr/lib \
-  && ln -s /usr/local/instantclient/sqlplus /usr/bin/sqlplus \
-  && chmod 755 -R /usr/local/instantclient \
-  && docker-php-ext-configure oci8 --with-oci8=instantclient,/usr/local/instantclient \
-  && docker-php-ext-install oci8 \
-  && docker-php-ext-install pdo_mysql exif opcache \
-  && apt-get install -y libicu-dev libaio-dev libxml2-dev libjpeg-dev libpng-dev libfreetype6-dev libldap2-dev\
+# Install Oracle Instantclient
+RUN mkdir /opt/oracle \
+    && cd /opt/oracle \
+    && wget https://download.oracle.com/otn_software/linux/instantclient/215000/instantclient-basic-linux.x64-21.5.0.0.0dbru.zip \
+    && wget https://download.oracle.com/otn_software/linux/instantclient/215000/instantclient-sdk-linux.x64-21.5.0.0.0dbru.zip \
+    && unzip /opt/oracle/instantclient-basic-linux.x64-21.5.0.0.0dbru.zip -d /opt/oracle \
+    && unzip /opt/oracle/instantclient-sdk-linux.x64-21.5.0.0.0dbru.zip -d /opt/oracle \
+    && rm -rf /opt/oracle/*.zip
+
+# Install Oracle extensions
+RUN docker-php-ext-configure pdo_oci --with-pdo-oci=instantclient,/opt/oracle/instantclient_21_5,21.5 \
+       && echo 'instantclient,/opt/oracle/instantclient_21_5/' | pecl install oci8 \
+       && docker-php-ext-install \
+               pdo_oci \
+       && docker-php-ext-enable \
+               oci8
+
+RUN docker-php-ext-install pdo_mysql exif opcache \
   && docker-php-ext-install intl soap dom \
   && docker-php-ext-configure gd --with-freetype --with-jpeg \
   && docker-php-ext-install gd \
   && docker-php-ext-install zip \
   && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
   && docker-php-ext-install ldap \
-  && apt-get install -y imagemagick vim wget telnet cron sudo git npm\
   && apt-get purge -y --auto-remove \
   && apt-get clean -y \
   && npm install -g yarn \
